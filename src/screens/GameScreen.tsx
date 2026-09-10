@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import { Board } from '../components/Board';
 import { PromotionDialog } from '../components/PromotionDialog';
 import { AnimalPiece } from '../components/AnimalPiece';
 import { useGameStore } from '../store/gameStore';
 import { DIFFICULTIES } from '../data/difficulty';
 import { COPY } from '../data/copy';
+import { PIECE_INFO, PROMOTION_CHOICES } from '../data/pieceMap';
 import { PIECE_VALUE } from '../engine/evaluate';
 import type { PieceSymbol, Color } from '../types';
 
-/** 对局页：棋盘 + 状态条 + 棋谱 + 战利品 + 操作按钮。 */
+const MAX_HINTS = 3;
+
+/** 对局页：还原概念稿——顶部对战信息条 + 木质棋盘 + 底部圆润操作栏。 */
 export function GameScreen() {
   const history = useGameStore((s) => s.history);
   const captured = useGameStore((s) => s.captured);
@@ -21,7 +25,11 @@ export function GameScreen() {
   const flipBoard = useGameStore((s) => s.flipBoard);
   const backToMenu = useGameStore((s) => s.backToMenu);
 
+  const [hintsLeft, setHintsLeft] = useState(MAX_HINTS);
+  const [showRules, setShowRules] = useState(false);
+
   const playerColor: Color = settings.faction === 'savanna' ? 'w' : 'b';
+  const oppColor: Color = playerColor === 'w' ? 'b' : 'w';
   const isPlayerTurn = chess.turn() === playerColor && !aiThinking;
   const diff = DIFFICULTIES[settings.level];
 
@@ -33,90 +41,122 @@ export function GameScreen() {
         ? COPY.game.yourTurn
         : COPY.game.aiThinking;
 
-  return (
-    <div className="game-layout">
-      <div className="board-column">
-        <div className={`status-bar ${status === 'check' ? 'alarm' : ''}`}>
-          <span className="status-opponent">
-            {diff.emoji} 对手：{diff.nameZh}
-          </span>
-          <span className="status-turn">
-            {aiThinking && <span className="spinner" />}
-            {statusText}
-          </span>
-        </div>
-        <Board />
-        <div className="controls">
-          <button className="btn" onClick={undo} disabled={aiThinking || history.length === 0}>
-            ↩ {COPY.game.undo}
-          </button>
-          <button className="btn" onClick={requestHint} disabled={!isPlayerTurn}>
-            💡 {COPY.game.hint}
-          </button>
-          <button className="btn" onClick={flipBoard}>
-            🔄 {COPY.game.flipBoard}
-          </button>
-          <button
-            className="btn danger"
-            onClick={() => {
-              if (confirm(COPY.confirm.resign)) resign();
-            }}
-          >
-            🏳 {COPY.game.resign}
-          </button>
-          <button className="btn" onClick={backToMenu}>
-            ☰ {COPY.game.backToMenu}
-          </button>
-        </div>
-      </div>
-
-      <aside className="side-panel">
-        <CapturedTray captured={captured} playerColor={playerColor} />
-        <div className="moves-panel">
-          <h3>{COPY.game.moves}</h3>
-          <MoveList history={history} />
-        </div>
-      </aside>
-
-      <PromotionDialog />
-    </div>
-  );
-}
-
-function CapturedTray({
-  captured,
-  playerColor,
-}: {
-  captured: { w: PieceSymbol[]; b: PieceSymbol[] };
-  playerColor: Color;
-}) {
-  const oppColor: Color = playerColor === 'w' ? 'b' : 'w';
-  // 玩家吃掉的是对手颜色的子；对手吃掉的是玩家颜色的子
   const playerGains = captured[oppColor];
   const aiGains = captured[playerColor];
   const score = materialScore(playerGains) - materialScore(aiGains);
 
+  const doHint = () => {
+    if (!isPlayerTurn || hintsLeft <= 0) return;
+    requestHint();
+    setHintsLeft((n) => n - 1);
+  };
+
   return (
-    <div className="captured-tray">
-      <div className="captured-row">
-        <span className="captured-label">你的战利品</span>
-        <div className="captured-pieces">
-          {playerGains.map((p, i) => (
-            <AnimalPiece key={i} type={p} color={oppColor} size={26} />
-          ))}
-          {score > 0 && <span className="advantage">+{score}</span>}
+    <div className="game-screen">
+      {/* 顶部对战信息条 */}
+      <header className="top-bar">
+        <button className="icon-btn" onClick={backToMenu} aria-label={COPY.game.backToMenu} title={COPY.game.backToMenu}>
+          <span className="icon-glyph">←</span>
+        </button>
+
+        <div className={`player-card savanna ${isPlayerTurn ? 'active' : ''}`}>
+          <div className="avatar">
+            <AnimalPiece type="k" color="w" size={44} />
+          </div>
+          <div className="player-info">
+            <span className="player-name">你</span>
+            <span className="player-meta">🏆 草原族</span>
+            <CapturedRow pieces={playerGains} color={oppColor} bonus={score > 0 ? score : 0} />
+          </div>
         </div>
-      </div>
-      <div className="captured-row">
-        <span className="captured-label">对手战利品</span>
-        <div className="captured-pieces">
-          {aiGains.map((p, i) => (
-            <AnimalPiece key={i} type={p} color={playerColor} size={26} />
-          ))}
-          {score < 0 && <span className="advantage">+{-score}</span>}
+
+        <div className={`turn-pill ${status === 'check' ? 'alarm' : ''}`}>
+          {aiThinking ? <span className="spinner" /> : <span className="crown">👑</span>}
+          <span>{statusText}</span>
         </div>
-      </div>
+
+        <div className={`player-card tundra ${!isPlayerTurn ? 'active' : ''}`}>
+          <div className="player-info right">
+            <span className="player-name">{diff.nameZh}</span>
+            <span className="player-meta">🏆 Lv.{settings.level}</span>
+            <CapturedRow pieces={aiGains} color={playerColor} bonus={score < 0 ? -score : 0} align="right" />
+          </div>
+          <div className="avatar">
+            <AnimalPiece type="k" color="b" size={44} />
+          </div>
+        </div>
+
+        <button className="icon-btn" onClick={flipBoard} aria-label={COPY.game.flipBoard} title={COPY.game.flipBoard}>
+          <span className="icon-glyph">⇅</span>
+        </button>
+      </header>
+
+      <Board />
+
+      {/* 底部操作栏 */}
+      <footer className="bottom-bar">
+        <button
+          className="ctrl-btn"
+          onClick={undo}
+          disabled={aiThinking || history.length === 0}
+        >
+          <span className="ctrl-icon">↩</span>
+          <span className="ctrl-label">{COPY.game.undo}</span>
+        </button>
+
+        <button className="ctrl-btn" onClick={doHint} disabled={!isPlayerTurn || hintsLeft <= 0}>
+          <span className="ctrl-icon">💡</span>
+          {hintsLeft > 0 && <span className="badge">{hintsLeft}</span>}
+          <span className="ctrl-label">{COPY.game.hint}</span>
+        </button>
+
+        <div className="status-card">
+          <AnimalPiece type="p" color={playerColor} size={40} />
+          <span className="status-card-text">{statusText}</span>
+        </div>
+
+        <button className="ctrl-btn" onClick={() => setShowRules(true)}>
+          <span className="ctrl-icon">📖</span>
+          <span className="ctrl-label">规则</span>
+        </button>
+
+        <button
+          className="ctrl-btn danger"
+          onClick={() => {
+            if (confirm(COPY.confirm.resign)) resign();
+          }}
+        >
+          <span className="ctrl-icon">🏳</span>
+          <span className="ctrl-label">{COPY.game.resign}</span>
+        </button>
+      </footer>
+
+      <PromotionDialog />
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
     </div>
+  );
+}
+
+/** 战利品缩略行：显示已吃掉的对方棋子与领先分。 */
+function CapturedRow({
+  pieces,
+  color,
+  bonus,
+  align = 'left',
+}: {
+  pieces: PieceSymbol[];
+  color: Color;
+  bonus: number;
+  align?: 'left' | 'right';
+}) {
+  if (pieces.length === 0 && bonus === 0) return <span className="captured-mini empty" />;
+  return (
+    <span className={`captured-mini ${align}`}>
+      {pieces.map((p, i) => (
+        <AnimalPiece key={i} type={p} color={color} size={16} />
+      ))}
+      {bonus > 0 && <span className="advantage">+{bonus}</span>}
+    </span>
   );
 }
 
@@ -124,26 +164,40 @@ function materialScore(pieces: PieceSymbol[]): number {
   return pieces.reduce((sum, p) => sum + Math.round(PIECE_VALUE[p] / 100), 0);
 }
 
-function MoveList({ history }: { history: { san: string }[] }) {
-  // 两步一行（白/黑）
-  const rows: { no: number; white?: string; black?: string }[] = [];
-  for (let i = 0; i < history.length; i += 2) {
-    rows.push({
-      no: i / 2 + 1,
-      white: history[i]?.san,
-      black: history[i + 1]?.san,
-    });
-  }
+/** 规则说明弹窗：动物棋子怎么走。 */
+function RulesModal({ onClose }: { onClose: () => void }) {
+  const order: PieceSymbol[] = ['k', 'q', 'r', 'b', 'n', 'p'];
   return (
-    <ol className="move-list">
-      {rows.length === 0 && <li className="move-empty">还没有落子</li>}
-      {rows.map((r) => (
-        <li key={r.no}>
-          <span className="move-no">{r.no}.</span>
-          <span className="move-san">{r.white}</span>
-          <span className="move-san">{r.black ?? ''}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="rules-dialog" onClick={(e) => e.stopPropagation()}>
+        <h3>动物棋子怎么走</h3>
+        <ul className="rules-list">
+          {order.map((code) => {
+            const info = PIECE_INFO[code];
+            return (
+              <li key={code}>
+                <span className="rules-icon">
+                  <AnimalPiece type={code} color="w" size={40} />
+                </span>
+                <span className="rules-text">
+                  <b>
+                    {info.animalZh}
+                    <span className="rules-corr"> · {info.chessZh}</span>
+                  </b>
+                  <span>{info.moveDesc}</span>
+                  <span className="rules-special">{info.specialAbility}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="rules-foot">
+          小鸡走到对岸可以“长大”成 {PROMOTION_CHOICES.map((c) => PIECE_INFO[c].animalZh).join('、')}。
+        </p>
+        <button className="btn primary" onClick={onClose}>
+          我知道啦
+        </button>
+      </div>
+    </div>
   );
 }

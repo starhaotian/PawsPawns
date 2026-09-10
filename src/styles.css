@@ -380,7 +380,7 @@ button {
   flex-direction: column;
   padding: 12px;
   border-radius: 20px;
-  overflow: hidden;
+  overflow: visible;
   background: linear-gradient(160deg, var(--board-frame-hi), var(--board-frame));
   box-shadow: 0 10px 30px rgba(120, 70, 25, 0.28), inset 0 2px 4px rgba(255, 240, 210, 0.4);
 }
@@ -503,10 +503,30 @@ button {
   border-radius: 12px;
   padding: 10px 12px;
   box-shadow: var(--shadow);
-  z-index: 30;
+  z-index: 120;
   text-align: left;
   font-weight: 500;
   pointer-events: none;
+}
+/* hover 的格子提到上层，避免相邻格子遮挡说明卡 */
+.square:hover {
+  z-index: 20;
+}
+/* 顶部两行：说明卡改为向下弹出，避免超出棋盘顶部/被信息条遮挡 */
+.piece-wrap.tip-down .tooltip-card {
+  bottom: auto;
+  top: 105%;
+}
+/* 最左两列：说明卡左边缘对齐格子，避免超出视口左侧 */
+.piece-wrap.tip-start .tooltip-card {
+  left: 0;
+  transform: none;
+}
+/* 最右两列：说明卡右边缘对齐格子，避免超出视口右侧 */
+.piece-wrap.tip-end .tooltip-card {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 .tooltip-head {
   display: flex;

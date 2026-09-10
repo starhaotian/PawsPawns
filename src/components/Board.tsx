@@ -79,7 +79,16 @@ export function Board() {
               >
                 {isTarget && <span className={piece ? 'target-ring' : 'target-dot'} />}
                 {piece && (
-                  <span className="piece-wrap">
+                  <span
+                    className={[
+                      'piece-wrap',
+                      rIdx <= 1 ? 'tip-down' : '',
+                      fIdx <= 1 ? 'tip-start' : '',
+                      fIdx >= 6 ? 'tip-end' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
                     <AnimalPiece type={piece.type} color={piece.color} />
                     {hovered === sq && tooltipDetail !== 'off' && (
                       <PieceTooltip type={piece.type} detail={tooltipDetail} />

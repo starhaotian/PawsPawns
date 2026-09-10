@@ -1,19 +1,34 @@
-import type { Level, Handicap } from '../types';
+import type { Level, Handicap, Phase } from '../types';
+
+/** 失误模型：以"比最优着法差多少厘兵"来定义失误，而不是"排第几名"。 */
+export interface BlunderModel {
+  /** 触发失误的概率（0~1）。 */
+  rate: number;
+  /**
+   * 失误着法允许的评分损失区间（centipawn）。
+   * 下限过滤掉"差不多好"的着法（否则等于没失误），上限避免蠢到离谱。
+   */
+  lossBand: [number, number];
+}
 
 export interface DifficultyConfig {
   level: Level;
   nameZh: string;
   nameEn: string;
   emoji: string;
-  /** 搜索深度（半步/ply）。受限于纯 JS 引擎的可行性，大师档封顶在可实时返回的深度。 */
-  searchDepth: number;
-  /** 基础失误率（0~1）。幼兽档会按局面阶段递减。 */
-  blunderBase: number;
-  /** 幼兽档专用：按阶段递减的失误率。其余档位读 blunderBase。 */
-  blunderByPhase?: { opening: number; middlegame: number; endgame: number };
+  /** 迭代深化的最大深度（ply）。实际到达深度还受 budgetMs 约束。 */
+  maxDepth: number;
+  /** 单步搜索的硬时间预算（ms）。到点即采用最后一个搜完的深度，响应时间因此可控。 */
+  budgetMs: number;
+  /** 是否展开静态搜索（吃子续算）。关掉会看不清连续吃子，是"新手感"的来源之一。 */
+  quiescence: boolean;
+  /** 默认失误模型。 */
+  blunder: BlunderModel;
+  /** 按阶段覆盖失误模型（幼兽档开局更容易走岔）。 */
+  blunderByPhase?: Partial<Record<Phase, BlunderModel>>;
   /** 开局库使用的最大步数（ply）；0 表示不使用开局库。 */
   openingPlies: number;
-  /** 思考时的模拟延迟范围（ms），让节奏更自然。 */
+  /** 思考节奏下限范围（ms），让落子不会快到失真。 */
   thinkDelayMs: [number, number];
   tagline: string;
 }
@@ -24,11 +39,18 @@ export const DIFFICULTIES: Record<Level, DifficultyConfig> = {
     nameZh: '幼兽',
     nameEn: 'Cub',
     emoji: '🐾',
-    searchDepth: 2,
-    blunderBase: 0.45,
-    blunderByPhase: { opening: 0.55, middlegame: 0.45, endgame: 0.3 },
+    maxDepth: 2,
+    budgetMs: 120,
+    quiescence: false,
+    blunder: { rate: 0.3, lossBand: [60, 300] },
+    blunderByPhase: {
+      // 不背开局库，开局最容易走岔；残局稍微收敛，免得把赢棋走成闹剧
+      opening: { rate: 0.35, lossBand: [60, 300] },
+      middlegame: { rate: 0.3, lossBand: [60, 300] },
+      endgame: { rate: 0.22, lossBand: [50, 250] },
+    },
     openingPlies: 0,
-    thinkDelayMs: [300, 700],
+    thinkDelayMs: [250, 550],
     tagline: '刚学会走路的小家伙，会犯不少可爱的错误',
   },
   2: {
@@ -36,10 +58,15 @@ export const DIFFICULTIES: Record<Level, DifficultyConfig> = {
     nameZh: '游侠',
     nameEn: 'Ranger',
     emoji: '🏹',
-    searchDepth: 3,
-    blunderBase: 0.12,
-    openingPlies: 6,
-    thinkDelayMs: [500, 1100],
+    maxDepth: 4,
+    budgetMs: 400,
+    quiescence: true,
+    // 失误区间是个筛选器：区间内没有候选走法时照样走最优，所以放宽上限对平均失误影响有限
+    // （实测 14cp → 18cp，题库分辨不出这个量级）。选这组的理由是分布尾巴更长——
+    // 偶尔露一个两兵级别的破绽，比持续小幅漂移更符合"偶有疏漏"的定位，也更容易被玩家抓住。
+    blunder: { rate: 0.2, lossBand: [40, 220] },
+    openingPlies: 8,
+    thinkDelayMs: [400, 900],
     tagline: '身经百战的草原游侠，出招稳健，偶有疏漏',
   },
   3: {
@@ -47,10 +74,12 @@ export const DIFFICULTIES: Record<Level, DifficultyConfig> = {
     nameZh: '狮王长老',
     nameEn: 'Elder Lion',
     emoji: '👑',
-    searchDepth: 4,
-    blunderBase: 0,
-    openingPlies: 12,
-    thinkDelayMs: [700, 1500],
+    maxDepth: 6,
+    budgetMs: 700,
+    quiescence: true,
+    blunder: { rate: 0, lossBand: [0, 0] },
+    openingPlies: 10,
+    thinkDelayMs: [500, 1000],
     tagline: '统治百兽王国的智者，几乎不会给你机会',
   },
 };

@@ -39,6 +39,8 @@ interface GameState {
   status: GameStatus;
   drawReason?: DrawReason;
   winner?: Faction | 'draw';
+  /** 每局一次生成的 AI 随机种子：不同对局走法有变化，同一局内悔棋重走仍然稳定。 */
+  gameSeed: number;
 
   // 交互
   selected: Square | null;
@@ -119,6 +121,12 @@ interface SaveData {
   pgn: string;
   orientation: Faction;
   hintsLeft: number;
+  gameSeed?: number;
+}
+
+/** 生成一个 32 位随机种子。 */
+function makeGameSeed(): number {
+  return (Math.random() * 0xffffffff) >>> 0;
 }
 
 function persist(state: GameState) {
@@ -129,6 +137,7 @@ function persist(state: GameState) {
       pgn: state.chess.pgn(),
       orientation: state.orientation,
       hintsLeft: state.hintsLeft,
+      gameSeed: state.gameSeed,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch {
@@ -168,6 +177,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   history: [],
   status: 'playing',
   winner: undefined,
+  gameSeed: 0,
 
   selected: null,
   legalTargets: [],
@@ -195,6 +205,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       status: readStatus(chess).status,
       drawReason: undefined,
       winner: undefined,
+      gameSeed: makeGameSeed(),
       selected: null,
       legalTargets: [],
       lastMove: null,
@@ -336,14 +347,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   cancelPromotion: () => set({ pendingPromotion: null }),
 
   triggerAiIfNeeded: () => {
-    const { chess, settings, status } = get();
+    const { chess, settings, status, gameSeed } = get();
     if (status === 'checkmate' || status === 'stalemate' || status === 'draw') return;
     if (chess.turn() !== aiColor(settings.faction)) return;
 
     set({ aiThinking: true });
     const fen = chess.fen();
     getAiClient()
-      .requestMove(fen, settings.level)
+      .requestMove(fen, settings.level, gameSeed)
       .then((res) => {
         const cur = get();
         // 防止在等待期间局面已变化（如返回菜单）
@@ -433,14 +444,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   requestHint: async () => {
-    const { chess, settings, aiThinking, hintsLeft } = get();
+    const { chess, settings, aiThinking, hintsLeft, gameSeed } = get();
     if (aiThinking || hintsLeft <= 0) return;
     if (chess.turn() !== playerColor(settings.faction)) return;
     const fen = chess.fen();
-    // 提示强度跟随当前难度：给出与对手同级的着法，而非永远最优解
+    // 提示恒用最高档搜索：低难度会故意走坏棋，跟随难度会把玩家带进坑里
     set({ hintsLeft: hintsLeft - 1 });
     persist(get());
-    const res = await getAiClient().requestMove(fen, settings.level);
+    const res = await getAiClient().requestMove(fen, 3, gameSeed);
     if (get().chess.fen() !== fen) return;
     set({ hintMove: { from: res.from, to: res.to } });
   },
@@ -468,7 +479,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 function resumeFrom(
   set: (partial: Partial<GameState>) => void,
   get: () => GameState,
-  saved: { settings: GameSettings; orientation: Faction; hintsLeft: number },
+  saved: { settings: GameSettings; orientation: Faction; hintsLeft: number; gameSeed?: number },
   chess: Chess,
 ) {
   const history = chess.history({ verbose: true }).map(
@@ -491,6 +502,7 @@ function resumeFrom(
     history,
     status,
     drawReason,
+    gameSeed: saved.gameSeed ?? makeGameSeed(),
     selected: null,
     legalTargets: [],
     lastMove: last ? { from: last.from, to: last.to } : null,

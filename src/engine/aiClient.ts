@@ -23,9 +23,9 @@ class AiClient {
     };
   }
 
-  async requestMove(fen: string, level: Level): Promise<AiResponse> {
+  async requestMove(fen: string, level: Level, gameSeed: number): Promise<AiResponse> {
     const id = ++this.seq;
-    const req: AiRequest = { id, fen, level };
+    const req: AiRequest = { id, fen, level, gameSeed };
     const [minMs, maxMs] = DIFFICULTIES[level].thinkDelayMs;
     const delay = minMs + Math.random() * (maxMs - minMs);
 

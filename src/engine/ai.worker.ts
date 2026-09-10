@@ -7,8 +7,8 @@ import { chooseMove } from './search';
  * 放在 Worker 中运行，保证深搜时主线程 UI 不卡顿。
  */
 self.onmessage = (e: MessageEvent<AiRequest>) => {
-  const { id, fen, level } = e.data;
-  const result = chooseMove(fen, level);
+  const { id, fen, level, gameSeed } = e.data;
+  const result = chooseMove(fen, level, gameSeed);
   if (!result) return; // 无合法走法（对局已结束），交由主线程处理
   const response: AiResponse = {
     id,

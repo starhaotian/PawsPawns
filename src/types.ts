@@ -61,6 +61,8 @@ export interface AiRequest {
   id: number;
   fen: string;
   level: Level;
+  /** 每局一次生成的随机种子：让不同对局有不同抖动，同一局面重复请求仍然稳定。 */
+  gameSeed: number;
 }
 
 export interface AiResponse {

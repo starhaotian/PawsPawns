@@ -48,6 +48,7 @@ interface GameState {
   aiThinking: boolean;
   pendingPromotion: PendingPromotion | null;
   hintMove: { from: Square; to: Square } | null;
+  hintsLeft: number;
   captured: { w: PieceSymbol[]; b: PieceSymbol[] };
   resigned: boolean;
 
@@ -55,6 +56,7 @@ interface GameState {
   setScreen: (s: Screen) => void;
   updateSettings: (patch: Partial<GameSettings>) => void;
   startGame: () => void;
+  resumeGame: () => void;
   selectSquare: (sq: Square) => void;
   clearSelection: () => void;
   tryMove: (from: Square, to: Square, promotion?: PieceSymbol) => boolean;
@@ -106,6 +108,9 @@ function computeCaptured(history: MoveRecord[]): { w: PieceSymbol[]; b: PieceSym
   return result;
 }
 
+/** 每局提示（智慧之光）的可用次数上限。 */
+export const MAX_HINTS = 3;
+
 const SAVE_KEY = 'paws-and-pawns:save';
 
 interface SaveData {
@@ -113,6 +118,7 @@ interface SaveData {
   fen: string;
   pgn: string;
   orientation: Faction;
+  hintsLeft: number;
 }
 
 function persist(state: GameState) {
@@ -122,6 +128,7 @@ function persist(state: GameState) {
       fen: state.fen,
       pgn: state.chess.pgn(),
       orientation: state.orientation,
+      hintsLeft: state.hintsLeft,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch {
@@ -169,6 +176,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   aiThinking: false,
   pendingPromotion: null,
   hintMove: null,
+  hintsLeft: MAX_HINTS,
   captured: { w: [], b: [] },
   resigned: false,
 
@@ -194,6 +202,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       aiThinking: false,
       pendingPromotion: null,
       hintMove: null,
+      hintsLeft: MAX_HINTS,
       captured: { w: [], b: [] },
       resigned: false,
       screen: 'game',
@@ -201,6 +210,31 @@ export const useGameStore = create<GameState>((set, get) => ({
     persist(get());
     // 若玩家执黑，AI（白）先走
     get().triggerAiIfNeeded();
+  },
+
+  resumeGame: () => {
+    const saved = loadSave();
+    if (!saved) return;
+    const chess = new Chess();
+    // 优先用 PGN 复盘（保留完整步数，可继续悔棋）；
+    // 让子等非标准开局的 PGN 可能无法还原，则回退到直接加载当前 FEN。
+    let restored = false;
+    try {
+      chess.loadPgn(saved.pgn);
+      restored = chess.fen() === saved.fen;
+    } catch {
+      restored = false;
+    }
+    if (!restored) {
+      const fallback = new Chess();
+      try {
+        fallback.load(saved.fen);
+        return void resumeFrom(set, get, saved, fallback);
+      } catch {
+        return; // 存档损坏，放弃恢复
+      }
+    }
+    resumeFrom(set, get, saved, chess);
   },
 
   selectSquare: (sq) => {
@@ -399,12 +433,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   requestHint: async () => {
-    const { chess, settings, aiThinking } = get();
-    if (aiThinking) return;
+    const { chess, settings, aiThinking, hintsLeft } = get();
+    if (aiThinking || hintsLeft <= 0) return;
     if (chess.turn() !== playerColor(settings.faction)) return;
     const fen = chess.fen();
-    // 用最高难度算一手好棋作为提示
-    const res = await getAiClient().requestMove(fen, 3);
+    // 提示强度跟随当前难度：给出与对手同级的着法，而非永远最优解
+    set({ hintsLeft: hintsLeft - 1 });
+    persist(get());
+    const res = await getAiClient().requestMove(fen, settings.level);
     if (get().chess.fen() !== fen) return;
     set({ hintMove: { from: res.from, to: res.to } });
   },
@@ -427,6 +463,50 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   backToMenu: () => set({ screen: 'menu' }),
 }));
+
+/** 从已恢复的 chess 实例重建对局状态并切到对局页。 */
+function resumeFrom(
+  set: (partial: Partial<GameState>) => void,
+  get: () => GameState,
+  saved: { settings: GameSettings; orientation: Faction; hintsLeft: number },
+  chess: Chess,
+) {
+  const history = chess.history({ verbose: true }).map(
+    (m): MoveRecord => ({
+      san: m.san,
+      from: m.from,
+      to: m.to,
+      color: m.color,
+      piece: m.piece,
+      captured: m.captured,
+      promotion: m.promotion,
+    }),
+  );
+  const { status, drawReason } = readStatus(chess);
+  const last = history[history.length - 1];
+  set({
+    settings: saved.settings,
+    chess,
+    fen: chess.fen(),
+    history,
+    status,
+    drawReason,
+    selected: null,
+    legalTargets: [],
+    lastMove: last ? { from: last.from, to: last.to } : null,
+    hintMove: null,
+    hintsLeft: saved.hintsLeft,
+    orientation: saved.orientation,
+    aiThinking: false,
+    pendingPromotion: null,
+    captured: computeCaptured(history),
+    resigned: false,
+    winner: undefined,
+    screen: 'game',
+  });
+  persist(get());
+  get().triggerAiIfNeeded();
+}
 
 /** 结算：根据 chess 状态确定胜负，切到结算页。 */
 function finishGame(

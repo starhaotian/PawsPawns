@@ -1,5 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 import { COPY } from '../data/copy';
+import { DIFFICULTIES } from '../data/difficulty';
+import type { Level } from '../types';
 
 /** 结算页：根据胜负与和局原因展示结果，提供再来一局/返回菜单。 */
 export function ResultScreen() {
@@ -9,6 +11,7 @@ export function ResultScreen() {
   const resigned = useGameStore((s) => s.resigned);
   const settings = useGameStore((s) => s.settings);
   const startGame = useGameStore((s) => s.startGame);
+  const updateSettings = useGameStore((s) => s.updateSettings);
   const backToMenu = useGameStore((s) => s.backToMenu);
 
   const playerWon = winner === settings.faction;
@@ -46,6 +49,20 @@ export function ResultScreen() {
         <div className="result-emoji">{emoji}</div>
         <h1>{title}</h1>
         <p className="result-detail">{detail}</p>
+        <div className="result-difficulty">
+          <span className="result-difficulty-label">下一局对手</span>
+          <div className="result-difficulty-chips">
+            {Object.values(DIFFICULTIES).map((d) => (
+              <button
+                key={d.level}
+                className={`diff-chip ${settings.level === d.level ? 'active' : ''}`}
+                onClick={() => updateSettings({ level: d.level as Level })}
+              >
+                {d.emoji} {d.nameZh}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="result-actions">
           <button className="btn primary large" onClick={startGame}>
             {COPY.result.rematch}

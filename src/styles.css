@@ -196,7 +196,10 @@ button {
 }
 
 .menu-actions {
-  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
   margin-top: 20px;
 }
 .save-hint {
@@ -818,5 +821,171 @@ button {
   }
   .codex {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 菜单：更多设置折叠 ---------- */
+.advanced-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-panel);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.advanced-toggle:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+.advanced-summary {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.chevron {
+  font-size: 18px;
+  color: var(--ink-soft);
+  transition: transform 0.18s ease;
+}
+.chevron.open {
+  transform: rotate(180deg);
+}
+.advanced-panel {
+  margin-top: 14px;
+  padding: 16px;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 250, 240, 0.6);
+}
+.advanced-panel h3 {
+  font-size: 15px;
+  margin: 0 0 10px;
+  color: var(--ink);
+}
+.advanced-panel h3 + .option-grid {
+  margin-bottom: 16px;
+}
+
+/* ---------- 棋盘：可拖拽棋子 ---------- */
+.piece-wrap {
+  cursor: grab;
+}
+.piece-wrap:active {
+  cursor: grabbing;
+}
+
+/* ---------- 底部：提示额度反馈 ---------- */
+.hint-meter {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-panel);
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+}
+.hint-meter-icon {
+  font-size: 18px;
+}
+.hint-meter-text {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 应用内确认弹窗 ---------- */
+.confirm-dialog {
+  background: var(--bg-panel);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  max-width: 340px;
+  width: calc(100% - 48px);
+}
+.confirm-message {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 4px 0 20px;
+  line-height: 1.5;
+}
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.btn.danger-solid {
+  background: linear-gradient(160deg, #ec7a72, var(--danger));
+  color: #fff;
+  border-color: transparent;
+}
+
+/* ---------- 升变弹窗：取消入口 ---------- */
+.promotion-hint {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin: 14px 0 10px;
+}
+.promotion-cancel {
+  border-color: var(--line);
+  color: var(--ink-soft);
+}
+
+/* ---------- 结算：快速调难度 ---------- */
+.result-difficulty {
+  margin-bottom: 22px;
+}
+.result-difficulty-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+.result-difficulty-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.diff-chip {
+  padding: 8px 14px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.diff-chip:hover {
+  transform: translateY(-2px);
+}
+.diff-chip.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(224, 112, 58, 0.18);
+}
+
+@media (max-width: 560px) {
+  .hint-meter {
+    padding: 8px 8px;
+  }
+  .hint-meter-text {
+    font-size: 12px;
   }
 }

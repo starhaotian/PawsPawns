@@ -23,6 +23,10 @@ export function PromotionDialog() {
             </button>
           ))}
         </div>
+        <p className="promotion-hint">选一个即可完成这步棋</p>
+        <button className="btn promotion-cancel" onClick={cancel}>
+          取消这步棋
+        </button>
       </div>
     </div>
   );

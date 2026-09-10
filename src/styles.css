@@ -873,14 +873,6 @@ button {
   margin-bottom: 16px;
 }
 
-/* ---------- 棋盘：可拖拽棋子 ---------- */
-.piece-wrap {
-  cursor: grab;
-}
-.piece-wrap:active {
-  cursor: grabbing;
-}
-
 /* ---------- 底部：提示额度反馈 ---------- */
 .hint-meter {
   flex: 1;

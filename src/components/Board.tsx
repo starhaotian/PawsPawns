@@ -18,7 +18,6 @@ export function Board() {
   const status = useGameStore((s) => s.status);
   const tooltipDetail = useGameStore((s) => s.settings.tooltipDetail);
   const selectSquare = useGameStore((s) => s.selectSquare);
-  const tryMove = useGameStore((s) => s.tryMove);
   const [hovered, setHovered] = useState<SquareT | null>(null);
 
   // 依据视角决定行列顺序（草原族=白在下；苔原族=翻转）
@@ -78,19 +77,10 @@ export function Board() {
                 onMouseEnter={() => setHovered(sq)}
                 onMouseLeave={() => setHovered((h) => (h === sq ? null : h))}
                 onTouchStart={() => setHovered(sq)}
-                onDragOver={(e) => {
-                  if (isTarget) e.preventDefault();
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (selected && isTarget) tryMove(selected, sq);
-                }}
               >
                 {isTarget && <span className={piece ? 'target-ring' : 'target-dot'} />}
                 {piece && (
                   <span
-                    draggable
-                    onDragStart={() => selectSquare(sq)}
                     className={[
                       'piece-wrap',
                       rIdx <= 1 ? 'tip-down' : '',
